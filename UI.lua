@@ -1,13 +1,16 @@
 -- Spellbook skill line tab UI (visually identical to original)
-local _, wt = ...
+local ADDON_NAME, wt = ...
 
 local BOOKTYPE_SPELL = BOOKTYPE_SPELL
 local MAX_ROWS = 22
 local ROW_HEIGHT = 14
 local SKILL_LINE_TAB = MAX_SKILLLINE_TABS - 1
-local HIGHLIGHT_TEXTURE_PATH = "Interface\\AddOns\\WhatsTraining_Epoch\\res\\highlight"
-local LEFT_BG_TEXTURE_PATH   = "Interface\\AddOns\\WhatsTraining_Epoch\\res\\left"
-local RIGHT_BG_TEXTURE_PATH  = "Interface\\AddOns\\WhatsTraining_Epoch\\res\\right"
+
+-- Build texture paths dynamically from the actual addon folder name
+local ADDON_PATH = "Interface\\AddOns\\" .. ADDON_NAME .. "\\"
+local HIGHLIGHT_TEXTURE_PATH = ADDON_PATH .. "res\\highlight"
+local LEFT_BG_TEXTURE_PATH   = ADDON_PATH .. "res\\left"
+local RIGHT_BG_TEXTURE_PATH  = ADDON_PATH .. "res\\right"
 local TAB_TEXTURE_PATH       = "Interface\\Icons\\INV_Misc_QuestionMark"
 
 -- Use the global GameTooltip for maximum compatibility on 3.3.5 variants

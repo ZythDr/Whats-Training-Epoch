@@ -1,2 +1,37 @@
-# Whats-Training-Epoch
-What's Training? addon fork for WotLK 3.3.5, made to be used on Epoch, but should be compatible with any private server as it lacks any form of spell database and instead scans class trainers the first time you visit them.
+# What's Training? Epoch (Server-agnostic)
+### Although the name suggests this fork is for Epoch specifically, it was made to be server-agnostic and *should* work on any 3.3.5 server.  
+
+A server‑agnostic rework of “What’s Training?” for Wrath-era clients (3.3.5a).  
+It keeps the original What's Training? UI and scans for spells/abilities upon class trainer visit instead of coming pre-bundled with a static database.
+
+## Differences compared to WhatsTraining_WotLK
+- **Server-agnostic:** discovers spells by scanning class trainers and saves a per‑character cache and therefore should work on *all* 3.3.5 servers.  
+- **First Run:** requires visiting a trainer before the addon can display any useful information.  
+- **Level‑up + Login summary:** posts available spells plus total cost in chat.  
+- Minor UI tweaks.
+
+## Usage Notes  
+- **First run:** visit your class trainer once to populate the cache.  
+- The “What can I train?” tab appears in your Spellbook (uses a custom skill line tab).  
+
+## Commands
+- **/wte reset** — clear the per‑character cache
+- **/wte test** — show the current “Available now” summary from cache (requires cached trainer data + unlearned available spells)  
+- **/wte scan** — force a trainer scan (use while a trainer window is open, shouldn't be necessary)  
+- **/wte debug** — toggle debug logging  
+
+## Localization
+Should *hopefully* work for: enUS (default), frFR, ruRU, zhCN, zhTW, deDE, koKR.  
+The Localization is directly ripped from WhatsTraining_WotLK  
+
+## Credit:
+https://github.com/anhility/WhatsTraining_WotLK for the 3.3.5 fork that I used as a starting point.  
+https://github.com/fusionpit/WhatsTraining for the original addon.  
+ChatGPT for actually writing the code... lol  
+
+## Alternatives:  
+https://github.com/XDeltaTango/WhatsTraining-Plus - I thought this fork didn't work when I started making my fork, turns out it does work. But compared to What's Training? Epoch it looks a lot less like the original addon, so I continued making What's Training? Epoch anyway, but functionally they are both very similar.
+
+
+## License
+MIT — see LICENSE.

@@ -22,6 +22,17 @@ Demo:
 - **/wte scan** — force a trainer scan (use while a trainer window is open, shouldn't be necessary)  
 - **/wte debug** — toggle debug logging  
 
+## Installation
+1. Download the addon from the green Code dropdown in the top right here on Github.  
+2. Save the addon somewhere you can find it and extract it there.  
+3. Locate the addon files by going as deep into the folders as you need, then go back one step.  
+4. You should see a folder named `Whats-Training-Epoch-main`, rename it to `Whats-Training-Epoch`.  
+5. Move the `Whats-Training-Epoch` folder into your game folder, more specifically into the Interface\AddOns\ folder.  
+6. Done! If everything was done correctly, the addon will now  appear in the in-game Addons menu, and work in-game!  
+
+Alternatively, here's a quick video guide on how to do it:
+<video src='https://github.com/user-attachments/assets/7c1b2f47-c0f5-4185-bed2-82b3fa117463' width=180 height=100/>  
+
 ## Localization
 Should *hopefully* work for: enUS (default), frFR, ruRU, zhCN, zhTW, deDE, koKR.  
 The Localization is directly ripped from WhatsTraining_WotLK  

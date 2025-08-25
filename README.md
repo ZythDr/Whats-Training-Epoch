@@ -1,7 +1,7 @@
 # What's Training? Epoch (Server-agnostic)
 ### Although the name suggests this fork is for Epoch specifically, it was made to be server-agnostic and *should* work on any 3.3.5 server.  
 
-A server‑agnostic rework of “What’s Training?” for Wrath-era clients (3.3.5a).  
+A server‑agnostic rework of “What’s Training?” made to be used on Project Epoch primarily. But really it's for WotLK servers.  
 It keeps the original What's Training? UI and scans for spells/abilities upon class trainer visit instead of coming pre-bundled with a static database.
 
 ## Differences compared to WhatsTraining_WotLK
@@ -14,6 +14,8 @@ It keeps the original What's Training? UI and scans for spells/abilities upon cl
 - **First run:** visit your class trainer once to populate the cache.  
 - The “What can I train?” tab appears in your Spellbook (uses a custom skill line tab).  
 
+Demo: 
+<video src='https://github.com/user-attachments/assets/404658a6-6a4c-4d7d-ae94-0be52e466c55' width=180 height=100/>
 ## Commands
 - **/wte reset** — clear the per‑character cache
 - **/wte test** — show the current “Available now” summary from cache (requires cached trainer data + unlearned available spells)  

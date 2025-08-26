@@ -8,6 +8,9 @@ local TEST_ANNOUNCE_ON_TRAINER = false
 -- Set to 0 to disable.
 local ANNOUNCE_ON_LOGIN_DELAY_SEC = 10
 
+-- Limit how many spells are printed in chat per summary
+local MAX_ANNOUNCE_SPELLS = 6
+
 -- Chat header color for "What's Training?"
 --   "|cffffd200" -- WoW UI gold
 --   "|cffffff00" -- bright yellow
@@ -58,12 +61,13 @@ local function SpellDisplay(row)
 
   local id = row and row.id
   if id then
+    -- Prime cache to improve GetSpellLink reliability
+    local name = GetSpellInfo(id) or row.name or "Unknown"
     if GetSpellLink then
       local link = GetSpellLink(id)
       if link then return link .. suffix end
     end
     -- fallback manual hyperlink if needed
-    local name = row.name or "Unknown"
     return string.format("|cff71d5ff|Hspell:%d|h[%s]|h|r%s", id, name, suffix)
   end
 
@@ -71,24 +75,41 @@ local function SpellDisplay(row)
   return name .. suffix
 end
 
--- Announce a list of newly-available spells
-local function AnnounceNewlyAvailable(rows)
-  if not rows or #rows == 0 then return end
-  local lines, total = {}, 0
+-- Print each line via its own AddMessage to keep chat entries compact
+  -- Prefer the GUI’s total so chat matches exactly
+  local totalAll = (wt.totals and wt.totals.availableCost) or 0
+  if not totalAll or totalAll <= 0 then
+    -- Fallback: sum the rows (e.g., if totals aren’t available yet)
+    for _, r in ipairs(rows) do
+      totalAll = totalAll + (tonumber(r.cost) or 0)
+    end
+  end
+  local costLine = "Total cost: " .. GetCoinTextureString(totalAll)
+
+  -- Sum total cost across all available rows (not just shown ones)
+  local total = 0
   for _, r in ipairs(rows) do
-    table.insert(lines, SpellDisplay(r))
     total = total + (tonumber(r.cost) or 0)
   end
-  -- Two-line header with colored title
+
   local header1 = WT_HEADER_COLOR .. "What's Training?" .. FONT_COLOR_CODE_CLOSE
-  local header2 = "Now available at trainer:"
-  local cost = "Total cost: " .. GetCoinTextureString(total)
-  local msg = header1 .. "\n" .. header2 .. "\n" .. table.concat(lines, "\n") .. "\n" .. cost
-  if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
-    DEFAULT_CHAT_FRAME:AddMessage(msg)
-  else
-    print(msg)
+  local header2 = "Now available at class trainer:"
+  local costLine = "Total cost: " .. GetCoinTextureString(total)
+
+  local shown = math.min(MAX_ANNOUNCE_SPELLS or 6, #rows)
+  local function out(s)
+    if cf and cf.AddMessage then cf:AddMessage(s) else print(s) end
   end
+
+  out(header1)
+  out(header2)
+  for i = 1, shown do
+    out(SpellDisplay(rows[i]))
+  end
+  if #rows > shown then
+    out(string.format("And %d more. Open What's Training? to see the full list.", #rows - shown))
+  end
+  out(costLine)
 end
 
 -- Update the baseline set to reflect current data (call after any RebuildData)
@@ -210,7 +231,7 @@ f:SetScript("OnEvent", function(_, event, ...)
       end
     end
 
-    -- Delay the level-up summary by 0.5 seconds
+    -- Post the summary with a slight delay so other level-up handlers can run first
     ScheduleOnce(0.5, function()
       AnnounceNewlyAvailable(added)
     end)

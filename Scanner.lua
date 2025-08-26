@@ -3,6 +3,9 @@ local _, wt = ...
 
 wt.debug = wt.debug or false
 
+-- Account-wide settings (toggle for tab icon)
+WT_EpochAccountDB = WT_EpochAccountDB or {}
+
 local function dprint(...)
   if not wt.debug then return end
   DEFAULT_CHAT_FRAME:AddMessage("|cff66ccff[WT:Epoch]|r " .. table.concat({tostringall(...)}, " "))
@@ -204,6 +207,72 @@ local function ScanTrainerOnce()
   end)
 end
 
+-- ===== Tab icon (What's Training? spellbook tab) =====
+
+local ICON_ZOOM = 1.25
+
+-- Helper: apply a zoom to a texcoord rectangle (left/right/top/bottom in [0,1])
+local function SetZoomedTexCoord(tex, left, right, top, bottom, zoom)
+  zoom = tonumber(zoom) or 1
+  if zoom <= 1 then
+    tex:SetTexCoord(left, right, top, bottom)
+    return
+  end
+  local w = right - left
+  local h = bottom - top
+  local padX = (1 - 1/zoom) * w * 0.5
+  local padY = (1 - 1/zoom) * h * 0.5
+  tex:SetTexCoord(left + padX, right - padX, top + padY, bottom - padY)
+end
+
+-- Set the WT tab icon to either "?" or the player's class icon (atlas + texcoords), with a fixed 1.3x crop
+local function ApplyWTTabIcon()
+  -- WT uses MAX_SKILLLINE_TABS - 1 for its custom tab (as defined in UI.lua)
+  local tabIndex = (MAX_SKILLLINE_TABS and (MAX_SKILLLINE_TABS - 1)) or 4
+  local tab = _G["SpellBookSkillLineTab" .. tabIndex]
+  if not tab then return end
+
+  -- Ensure a normal texture exists
+  if not tab:GetNormalTexture() then
+    tab:SetNormalTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+  end
+  local tex = tab:GetNormalTexture()
+  if not tex then return end
+
+  local useClass = WT_EpochAccountDB and WT_EpochAccountDB.useClassTabIcon
+  if useClass then
+    local classToken = select(2, UnitClass("player"))
+    if CLASS_ICON_TCOORDS and classToken and CLASS_ICON_TCOORDS[classToken] then
+      local c = CLASS_ICON_TCOORDS[classToken] -- {left, right, top, bottom}
+      tex:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
+      SetZoomedTexCoord(tex, c[1], c[2], c[3], c[4], ICON_ZOOM)
+      return
+    end
+  end
+
+  -- Fallback: question mark
+  tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+  SetZoomedTexCoord(tex, 0, 1, 0, 1, ICON_ZOOM)
+end
+
+-- Re-apply next frame to win against other hooks that may set the icon
+local function ApplyWTTabIconNextFrame()
+  local fr = CreateFrame("Frame")
+  fr:SetScript("OnUpdate", function(self)
+    self:SetScript("OnUpdate", nil)
+    ApplyWTTabIcon()
+  end)
+end
+
+-- Keep the icon correct whenever the spellbook updates
+if type(hooksecurefunc) == "function" and type(SpellBookFrame_Update) == "function" then
+  hooksecurefunc("SpellBookFrame_Update", function()
+    ApplyWTTabIcon()
+    ApplyWTTabIconNextFrame()
+  end)
+end
+
+-- ===== End: Tab icon =====
 
 -- Debounced timer
 local throttle = CreateFrame("Frame", "WT_EpochTrainerScanOnceThrottle")
@@ -267,7 +336,7 @@ f:SetScript("OnEvent", function(_, event)
   end
 end)
 
--- Slash helpers: /wte debug | /wte scan | /wte reset | /wte test
+-- Slash helpers: /wte debug | /wte scan | /wte reset | /wte test | /wte icon
 local function sanitizeMsg(msg)
   msg = tostring(msg or "")
   msg = string.lower(msg)
@@ -312,7 +381,20 @@ SlashCmdList["WTE"] = function(msg)
       print("|cff66ccff[WT:Epoch]|r This command only works if you have cached spells available at your class trainer.")
     end
 
+  elseif msg == "icon" then
+    -- Account-wide toggle for tab icon
+    WT_EpochAccountDB = WT_EpochAccountDB or {}
+    WT_EpochAccountDB.useClassTabIcon = not WT_EpochAccountDB.useClassTabIcon
+    print("|cff66ccff[WT:Epoch]|r Tab icon (account-wide):", WT_EpochAccountDB.useClassTabIcon and "Class icon" or "Question mark")
+
+    -- Apply immediately and refresh spellbook once; also re-apply next frame
+    ApplyWTTabIcon()
+    ApplyWTTabIconNextFrame()
+    if type(SpellBookFrame_Update) == "function" then
+      SpellBookFrame_Update()
+    end
+
   else
-    print("|cff66ccff[WT:Epoch]|r commands: debug | scan | reset | test")
+    print("|cff66ccff[WT:Epoch]|r commands: debug | scan | reset | test | icon")
   end
 end

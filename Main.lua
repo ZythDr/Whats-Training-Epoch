@@ -170,6 +170,27 @@ function wt.RebuildData()
   if type(wt.UpdateTotals) == "function" then wt.UpdateTotals() end
 end
 
+-- Small helper: delayed one-shot scheduler (3.3.5 compatible)
+local function ScheduleOnce(sec, fn)
+  local fr = CreateFrame("Frame")
+  local t = sec or 0.3
+  fr:SetScript("OnUpdate", function(self, e)
+    t = t - e
+    if t <= 0 then
+      self:SetScript("OnUpdate", nil)
+      fn()
+    end
+  end)
+end
+
+-- Rebuild and refresh the visible UI if needed
+local function RebuildAndMaybeUpdate()
+  wt.RebuildData()
+  if wt.MainFrame and wt.MainFrame:IsVisible() and type(wt.Update) == "function" then
+    wt.Update(wt.MainFrame, true)
+  end
+end
+
 -- Events to keep view updated
 local ef = CreateFrame("Frame")
 ef:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -178,12 +199,14 @@ ef:RegisterEvent("LEARNED_SPELL_IN_TAB")
 ef:RegisterEvent("QUEST_TURNED_IN") -- optional: catch level-ups from turn-ins
 ef:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_ENTERING_WORLD" then
-    wt.RebuildData()
+    RebuildAndMaybeUpdate()
     if type(wt.CreateFrame) == "function" then wt.CreateFrame() end
-  elseif event == "PLAYER_LEVEL_UP" or event == "LEARNED_SPELL_IN_TAB" or event == "QUEST_TURNED_IN" then
-    wt.RebuildData()
-    if wt.MainFrame and wt.MainFrame:IsVisible() and type(wt.Update) == "function" then
-      wt.Update(wt.MainFrame, true)
-    end
+
+  elseif event == "PLAYER_LEVEL_UP" or event == "QUEST_TURNED_IN" then
+    -- Delay so UnitLevel("player") reflects the new level before we recalc categories
+    ScheduleOnce(0.5, RebuildAndMaybeUpdate)
+
+  elseif event == "LEARNED_SPELL_IN_TAB" then
+    RebuildAndMaybeUpdate()
   end
 end)

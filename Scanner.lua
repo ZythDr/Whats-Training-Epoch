@@ -243,6 +243,70 @@ local function DoInitialScan()
   end
 end
 
+-- Helper function to apply zoom factor to texture coordinates
+local function SetZoomedTexCoord(tex, left, right, top, bottom, zoom)
+  if not tex or not zoom then return end
+  zoom = tonumber(zoom) or 1.0
+  
+  -- Calculate the center point
+  local centerX = (left + right) / 2
+  local centerY = (top + bottom) / 2
+  
+  -- Calculate the new dimensions (smaller to create zoom effect)
+  local width = (right - left) / zoom
+  local height = (bottom - top) / zoom
+  
+  -- Calculate new coordinates centered around the same point
+  local newLeft = centerX - width / 2
+  local newRight = centerX + width / 2
+  local newTop = centerY - height / 2
+  local newBottom = centerY + height / 2
+  
+  tex:SetTexCoord(newLeft, newRight, newTop, newBottom)
+end
+
+-- Initialize account-wide database
+local function InitializeAccountDB()
+  WT_EpochAccountDB = WT_EpochAccountDB or {
+    useClassTabIcon = false
+  }
+end
+
+-- Apply the appropriate tab icon with zoom
+function wt.ApplyWTTabIcon()
+  local skillLineTab = _G["SpellBookSkillLineTab" .. (MAX_SKILLLINE_TABS - 1)]
+  if not skillLineTab then return end
+  
+  InitializeAccountDB()
+  
+  if WT_EpochAccountDB.useClassTabIcon then
+    -- Try to use class icon
+    local _, englishClass = UnitClass("player")
+    if englishClass and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[englishClass] then
+      skillLineTab:SetNormalTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
+      local coords = CLASS_ICON_TCOORDS[englishClass]
+      local normalTexture = skillLineTab:GetNormalTexture()
+      if normalTexture and coords then
+        SetZoomedTexCoord(normalTexture, coords[1], coords[2], coords[3], coords[4], 1.3)
+      end
+    else
+      -- Fallback to question mark if class icon unavailable
+      skillLineTab:SetNormalTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+      local normalTexture = skillLineTab:GetNormalTexture()
+      if normalTexture then
+        SetZoomedTexCoord(normalTexture, 0, 1, 0, 1, 1.3)
+      end
+    end
+  else
+    -- Use question mark icon
+    skillLineTab:SetNormalTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    local normalTexture = skillLineTab:GetNormalTexture()
+    if normalTexture then
+      SetZoomedTexCoord(normalTexture, 0, 1, 0, 1, 1.3)
+    end
+  end
+end
+
 -- Events
 local f = CreateFrame("Frame")
 f:RegisterEvent("PLAYER_LOGIN")
@@ -252,7 +316,7 @@ f:RegisterEvent("TRAINER_CLOSED")
 f:SetScript("OnEvent", function(_, event)
   dprint("Event:", event)
   if event == "PLAYER_LOGIN" then
-    -- nothing required
+    InitializeAccountDB()
   elseif event == "TRAINER_SHOW" then
     wt._trainerOpen = true
     wt._trainerScannedThisSession = false
@@ -305,6 +369,19 @@ SlashCmdList["WTE"] = function(msg)
     end
     print("|cff66ccff[WT:Epoch]|r cache cleared. Visit a class trainer to repopulate.")
 
+  elseif msg == "icon" then
+    InitializeAccountDB()
+    WT_EpochAccountDB.useClassTabIcon = not WT_EpochAccountDB.useClassTabIcon
+    wt.ApplyWTTabIcon()
+    -- Refresh spellbook to apply the icon change immediately
+    if SpellBookFrame and SpellBookFrame:IsVisible() then
+      if type(SpellBookFrame_Update) == "function" then
+        SpellBookFrame_Update()
+      end
+    end
+    local iconType = WT_EpochAccountDB.useClassTabIcon and "class icon" or "question mark"
+    print("|cff66ccff[WT:Epoch]|r tab icon set to:", iconType)
+
   elseif msg == "test" then
     if type(wt.TestAnnounce) == "function" then
       wt.TestAnnounce()
@@ -313,6 +390,6 @@ SlashCmdList["WTE"] = function(msg)
     end
 
   else
-    print("|cff66ccff[WT:Epoch]|r commands: debug | scan | reset | test")
+    print("|cff66ccff[WT:Epoch]|r commands: debug | scan | reset | test | icon")
   end
 end

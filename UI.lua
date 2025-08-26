@@ -276,7 +276,11 @@ function wt.CreateFrame()
   if not wt._uiHooked then
     local skillLineTab = _G["SpellBookSkillLineTab" .. SKILL_LINE_TAB]
     hooksecurefunc("SpellBookFrame_Update", function()
-      skillLineTab:SetNormalTexture(TAB_TEXTURE_PATH)
+      if type(wt.ApplyWTTabIcon) == "function" then
+        wt.ApplyWTTabIcon()
+      else
+        skillLineTab:SetNormalTexture(TAB_TEXTURE_PATH)
+      end
       skillLineTab.tooltip = wt.L.TAB_TEXT
       skillLineTab:Show()
       if (SpellBookFrame.selectedSkillLine == SKILL_LINE_TAB) then

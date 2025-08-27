@@ -77,6 +77,7 @@ end
 
 -- Print each line via its own AddMessage to keep chat entries compact
   -- Prefer the GUI’s total so chat matches exactly
+local function AnnounceNewlyAvailable(rows, cf)
   local totalAll = (wt.totals and wt.totals.availableCost) or 0
   if not totalAll or totalAll <= 0 then
     -- Fallback: sum the rows (e.g., if totals aren’t available yet)

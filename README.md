@@ -11,8 +11,8 @@ It keeps the original What's Training? UI and scans for spells/abilities upon cl
 - Minor UI tweaks.
 
 ## Usage Notes  
-- **First run:** visit your class trainer once to populate the cache.  
-- The “What can I train?” tab appears in your Spellbook (uses a custom skill line tab).  
+- Required: visit your class trainer once to populate the cache.  
+- The “What can I train?” icon appears at the bottom of your Spellbook tabs.  
 
 Demo: 
 <video src='https://github.com/user-attachments/assets/404658a6-6a4c-4d7d-ae94-0be52e466c55' width=180 height=100/>

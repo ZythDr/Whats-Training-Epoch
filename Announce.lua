@@ -225,16 +225,11 @@ f:SetScript("OnEvent", function(_, event, ...)
     local newMap, newList = BuildAvailableSetAndList()
     wt._availableSet = newMap
 
-    local added = {}
-    for _, row in ipairs(newList) do
-      if row._key and not old[row._key] then
-        table.insert(added, row)
+    -- If there are any available spells, print summary; otherwise, print nothing
+    ScheduleOnce(1.0, function()
+      if newList and #newList > 0 then
+        AnnounceNewlyAvailable(newList)
       end
-    end
-
-    -- Post the summary with a slight delay so other level-up handlers can run first
-    ScheduleOnce(0.5, function()
-      AnnounceNewlyAvailable(added)
     end)
 
   elseif event == "TRAINER_SHOW" and TEST_ANNOUNCE_ON_TRAINER then

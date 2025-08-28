@@ -6,8 +6,8 @@ It keeps the original What's Training? UI and scans for spells/abilities upon cl
 
 ## Differences compared to WhatsTraining_WotLK
 - **Server-agnostic:** discovers spells by scanning class trainers and saves a per‑character cache and therefore should work on *all* 3.3.5 servers.  
-- **First Run:** requires visiting a trainer before the addon can display any useful information.  
-- **Level‑up + Login summary:** posts available spells plus total cost in chat.  
+- This fork of What's Training? requires visiting a trainer before the addon can display any information.  
+- **Level‑up & Login summary:** posts available spells plus total cost in chat.  
 - Minor UI tweaks.
 
 ## Usage Notes  

@@ -38,13 +38,13 @@ Alternatively, here's a quick video guide on how to do it:
 Should *hopefully* work for: enUS (default), frFR, ruRU, zhCN, zhTW, deDE, koKR.  
 The Localization is directly ripped from WhatsTraining_WotLK  
 
+## Alternatives:  
+https://github.com/XDeltaTango/WhatsTraining-Plus - I thought this fork didn't work when I started making my fork, turns out it does work. But compared to What's Training? Epoch it looks a lot less like the original addon, so I continued making What's Training? Epoch anyway, but functionally they are both very similar.  
+
 ## Credit:
 https://github.com/anhility/WhatsTraining_WotLK for the 3.3.5 fork that I used as a starting point.  
 https://github.com/fusionpit/WhatsTraining for the original addon.  
 ChatGPT for actually writing the code... lol  
-
-## Alternatives:  
-https://github.com/XDeltaTango/WhatsTraining-Plus - I thought this fork didn't work when I started making my fork, turns out it does work. But compared to What's Training? Epoch it looks a lot less like the original addon, so I continued making What's Training? Epoch anyway, but functionally they are both very similar.
 
 
 ## License

@@ -17,6 +17,7 @@ It keeps the original What's Training? UI and scans for spells/abilities upon cl
 Demo: 
 <video src='https://github.com/user-attachments/assets/404658a6-6a4c-4d7d-ae94-0be52e466c55' width=180 height=100/>
 ## Commands
+- **/wte summary all | none | level | login** —  toggle when What's Trainer? summaries should appear (default: all)
 - **/wte reset** — clear the per‑character cache
 - **/wte icon** — toggle between "?" (default) icon and class icon for the spellbook tab button
 - **/wte test** — show the current “Available now” summary from cache (requires cached trainer data + unlearned available spells)  

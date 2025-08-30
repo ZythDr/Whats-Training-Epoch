@@ -3,12 +3,6 @@
 	@brief		Localization strings, translations and client locale check
 --]]
 
---[[
-	@brief		Accessing the addons private table
-
-	@var 	_		addonName, thrown away
-	@var	wt		Global addonTable
---]]
 local _, wt = ...
 
 --	Table of localized strings

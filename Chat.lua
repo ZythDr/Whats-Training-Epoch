@@ -1,21 +1,53 @@
--- Announce newly available spells in chat when the player levels up
+-- Chat/Announcements: slash commands and automatic summaries
 local _, wt = ...
 
 -- Disable trainer-open testing; use /wte test instead
 local TEST_ANNOUNCE_ON_TRAINER = false
 
 -- Show a summary automatically after logging in, after this many seconds.
--- Set to 0 to disable.
+-- Set to 0 to disable the delayed login summary (still gated by account toggles)
 local ANNOUNCE_ON_LOGIN_DELAY_SEC = 10
 
 -- Limit how many spells are printed in chat per summary
 local MAX_ANNOUNCE_SPELLS = 6
 
 -- Chat header color for "What's Training?"
---   "|cffffd200" -- WoW UI gold
---   "|cffffff00" -- bright yellow
---   "|cff99ff66" -- yellowish green (old default)
 local WT_HEADER_COLOR = "|cffffd200"
+
+-- Ensure account settings container exists and defaults for per-event toggles.
+WT_EpochAccountDB = WT_EpochAccountDB or {}
+if WT_EpochAccountDB.summaryOnLogin == nil then WT_EpochAccountDB.summaryOnLogin = true end
+if WT_EpochAccountDB.summaryOnLevel == nil then WT_EpochAccountDB.summaryOnLevel = true end
+
+-- Backward compatibility: migrate legacy summaryMode => two toggles
+local function MigrateLegacySummaryModeIfNeeded()
+  local mode = WT_EpochAccountDB and WT_EpochAccountDB.summaryMode or nil
+  if not mode then return end
+  if WT_EpochAccountDB._migratedSummaryMode then return end
+
+  local loginOn, levelOn = true, true
+  if mode == "all" then
+    loginOn, levelOn = true, true
+  elseif mode == "none" then
+    loginOn, levelOn = false, false
+  elseif mode == "ding" then
+    loginOn, levelOn = false, true
+  elseif mode == "login" then
+    loginOn, levelOn = true, false
+  end
+  WT_EpochAccountDB.summaryOnLogin = loginOn
+  WT_EpochAccountDB.summaryOnLevel = levelOn
+
+  -- Mark migrated; keep the key around in case user downgrades
+  WT_EpochAccountDB._migratedSummaryMode = true
+end
+
+local function SummaryAllowsLogin()
+  return WT_EpochAccountDB and WT_EpochAccountDB.summaryOnLogin == true
+end
+local function SummaryAllowsLevel()
+  return WT_EpochAccountDB and WT_EpochAccountDB.summaryOnLevel == true
+end
 
 -- Build a stable key for a spell row (prefer id; otherwise name+rank)
 local function SpellKey(s)
@@ -42,10 +74,9 @@ local function BuildAvailableSetAndList()
   return set, list
 end
 
--- Make a clickable spell link when we can; otherwise a plain label
+-- Make a clickable spell link when we can; otherwise a plain label.
 -- Appends the rank text (e.g., "(Rank 2)") after the link/name.
 local function SpellDisplay(row)
-  -- Build "(Rank X)" if available, using formattedSubText first
   local rankText = ""
   if row then
     rankText = row.formattedSubText or ""
@@ -61,13 +92,11 @@ local function SpellDisplay(row)
 
   local id = row and row.id
   if id then
-    -- Prime cache to improve GetSpellLink reliability
     local name = GetSpellInfo(id) or row.name or "Unknown"
     if GetSpellLink then
       local link = GetSpellLink(id)
       if link then return link .. suffix end
     end
-    -- fallback manual hyperlink if needed
     return string.format("|cff71d5ff|Hspell:%d|h[%s]|h|r%s", id, name, suffix)
   end
 
@@ -76,18 +105,7 @@ local function SpellDisplay(row)
 end
 
 -- Print each line via its own AddMessage to keep chat entries compact
-  -- Prefer the GUI’s total so chat matches exactly
 local function AnnounceNewlyAvailable(rows, cf)
-  local totalAll = (wt.totals and wt.totals.availableCost) or 0
-  if not totalAll or totalAll <= 0 then
-    -- Fallback: sum the rows (e.g., if totals aren’t available yet)
-    for _, r in ipairs(rows) do
-      totalAll = totalAll + (tonumber(r.cost) or 0)
-    end
-  end
-  local costLine = "Total cost: " .. GetCoinTextureString(totalAll)
-
-  -- Sum total cost across all available rows (not just shown ones)
   local total = 0
   for _, r in ipairs(rows) do
     total = total + (tonumber(r.cost) or 0)
@@ -188,7 +206,7 @@ local function ScheduleOnce(sec, fn)
   end)
 end
 
--- Events
+-- Events for announcements
 local f = CreateFrame("Frame")
 f:RegisterEvent("PLAYER_LOGIN")
 f:RegisterEvent("PLAYER_LEVEL_UP")
@@ -196,9 +214,11 @@ if TEST_ANNOUNCE_ON_TRAINER then
   f:RegisterEvent("TRAINER_SHOW") -- TEMP for formatting tests (disabled by default)
 end
 
-f:SetScript("OnEvent", function(_, event, ...)
+f:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGIN" then
+    MigrateLegacySummaryModeIfNeeded()
     TryWrapRebuild()
+
     -- Initialize baseline from current data (if any); this prevents the
     -- first level-up from dumping all currently-available spells as "new".
     if type(wt.RebuildData) == "function" then
@@ -207,8 +227,8 @@ f:SetScript("OnEvent", function(_, event, ...)
       wt.SyncAvailableSet()
     end
 
-    -- Schedule a delayed summary on login (silent if no cache or nothing available)
-    if (ANNOUNCE_ON_LOGIN_DELAY_SEC or 0) > 0 then
+    -- Schedule a delayed summary on login if the toggle allows it and delay > 0
+    if SummaryAllowsLogin() and (ANNOUNCE_ON_LOGIN_DELAY_SEC or 0) > 0 then
       ScheduleOnce(ANNOUNCE_ON_LOGIN_DELAY_SEC, function()
         if type(wt.AnnounceOnLogin) == "function" then
           wt.AnnounceOnLogin()
@@ -217,23 +237,22 @@ f:SetScript("OnEvent", function(_, event, ...)
     end
 
   elseif event == "PLAYER_LEVEL_UP" then
-    -- Compute diff: what became available that wasn't available before
-    local old = wt._availableSet or {}
+    -- Rebuild and compute currently available spells
     if type(wt.RebuildData) == "function" then
       wt.RebuildData()
     end
     local newMap, newList = BuildAvailableSetAndList()
+    -- Always update baseline
     wt._availableSet = newMap
 
-    -- If there are any available spells, print summary; otherwise, print nothing
-    ScheduleOnce(1.0, function()
-      if newList and #newList > 0 then
+    -- Only announce on level-up if toggle allows and there are available spells
+    if SummaryAllowsLevel() and newList and #newList > 0 then
+      ScheduleOnce(0.5, function()
         AnnounceNewlyAvailable(newList)
-      end
-    end)
+      end)
+    end
 
   elseif event == "TRAINER_SHOW" and TEST_ANNOUNCE_ON_TRAINER then
-    -- TEMP: Announce everything currently available a short moment after opening the trainer
     ScheduleOnce(0.45, function()
       if type(wt.RebuildData) == "function" then
         wt.RebuildData()
@@ -245,13 +264,77 @@ f:SetScript("OnEvent", function(_, event, ...)
   end
 end)
 
--- In case this file loads before RebuildData is defined, do a short-lived poll to wrap it.
-local poll = CreateFrame("Frame")
-local timeout, elapsed = 5, 0
-poll:SetScript("OnUpdate", function(self, e)
-  elapsed = elapsed + e
-  TryWrapRebuild()
-  if wt._rebuildWrapped or elapsed > timeout then
-    self:SetScript("OnUpdate", nil)
+-- ===== Slash commands (/wte) =====
+local function sanitizeMsg(msg)
+  msg = tostring(msg or "")
+  msg = string.lower(msg)
+  msg = msg:match("^%s*(.-)%s*$") or msg
+  return msg
+end
+
+SLASH_WTE1 = "/wte"
+SlashCmdList["WTE"] = function(msg)
+  msg = sanitizeMsg(msg)
+
+  if msg == "debug" then
+    wt.debug = not wt.debug
+    print("|cff66ccff[WT:Epoch]|r debug =", wt.debug and "ON" or "OFF")
+
+  elseif msg == "scan" then
+    if type(wt.ScanTrainerOnceNow) == "function" then
+      local ok, err = pcall(function() wt.ScanTrainerOnceNow() end)
+      if not ok then print("|cff66ccff[WT:Epoch]|r scan error:", tostring(err)) end
+    else
+      print("|cff66ccff[WT:Epoch]|r scan unavailable in this build.")
+    end
+
+  elseif msg == "reset" then
+    if type(wt.DB_Reset) == "function" then wt.DB_Reset() end
+    wt._iconCache = nil
+    if type(wt.RebuildData) == "function" then wt.RebuildData() end
+    if wt.MainFrame and wt.MainFrame:IsVisible() and type(wt.Update) == "function" then
+      wt.Update(wt.MainFrame, true)
+    end
+    print("|cff66ccff[WT:Epoch]|r cache cleared. Visit a class trainer to repopulate.")
+
+  elseif msg == "test" then
+    if type(wt.TestAnnounce) == "function" then
+      wt.TestAnnounce()
+    else
+      print("|cff66ccff[WT:Epoch]|r This command only works if you have cached spells available at your class trainer.")
+    end
+
+  elseif msg == "icon" then
+    local on = wt.ToggleTabIcon and wt.ToggleTabIcon() or false
+    print("|cff66ccff[WT:Epoch]|r Tab icon (account-wide):", on and "Class icon" or "Question mark")
+
+  elseif msg:match("^summary") then
+    WT_EpochAccountDB = WT_EpochAccountDB or {}
+    local arg = msg:match("^summary%s*(.*)$") or ""
+    arg = arg:match("%S+") or ""
+
+    if arg == "" then
+      print("|cff66ccff[WT:Epoch]|r Summary on login:", (WT_EpochAccountDB.summaryOnLogin and "ON" or "OFF"),
+            "level-up:", (WT_EpochAccountDB.summaryOnLevel and "ON" or "OFF"))
+    elseif arg == "all" then
+      WT_EpochAccountDB.summaryOnLogin = true
+      WT_EpochAccountDB.summaryOnLevel = true
+      print("|cff66ccff[WT:Epoch]|r Summary enabled for login and level-up.")
+    elseif arg == "none" then
+      WT_EpochAccountDB.summaryOnLogin = false
+      WT_EpochAccountDB.summaryOnLevel = false
+      print("|cff66ccff[WT:Epoch]|r Summary disabled for login and level-up.")
+    elseif arg == "login" then
+      WT_EpochAccountDB.summaryOnLogin = not WT_EpochAccountDB.summaryOnLogin
+      print("|cff66ccff[WT:Epoch]|r Summary on login:", WT_EpochAccountDB.summaryOnLogin and "ON" or "OFF")
+    elseif arg == "level" then
+      WT_EpochAccountDB.summaryOnLevel = not WT_EpochAccountDB.summaryOnLevel
+      print("|cff66ccff[WT:Epoch]|r Summary on level-up:", WT_EpochAccountDB.summaryOnLevel and "ON" or "OFF")
+    else
+      print("|cff66ccff[WT:Epoch]|r summary usage: /wte summary [all|none|level|login]")
+    end
+
+  else
+    print("|cff66ccff[WT:Epoch]|r commands: debug | scan | reset | test | icon | summary")
   end
-end)
+end

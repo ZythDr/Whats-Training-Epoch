@@ -12,7 +12,7 @@ function wt.DB_StoreScan(entries)
   for _, e in ipairs(entries) do
     local key = tostring(e.name or "UNKNOWN") .. "::" .. (e.rank or "")
     WT_EpochCharDB.spells[key] = {
-      id = tonumber(e.id),              -- NEW: persist spellID for real links
+      id = tonumber(e.id),              -- persist spellID for real links
       name = e.name,
       rank = e.rank,
       description = e.description or "",

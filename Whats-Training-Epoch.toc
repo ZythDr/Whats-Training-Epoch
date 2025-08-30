@@ -13,10 +13,9 @@ DB.lua
 Main.lua
 UI.lua
 Scanner.lua
-Announce.lua
+Chat.lua
 
 # Assets
 # res/highlight
 # res/left
 # res/right
-

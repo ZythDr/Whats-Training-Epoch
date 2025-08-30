@@ -3,9 +3,6 @@ local _, wt = ...
 
 wt.debug = wt.debug or false
 
--- Account-wide settings (toggle for tab icon)
-WT_EpochAccountDB = WT_EpochAccountDB or {}
-
 local function dprint(...)
   if not wt.debug then return end
   DEFAULT_CHAT_FRAME:AddMessage("|cff66ccff[WT:Epoch]|r " .. table.concat({tostringall(...)}, " "))
@@ -163,6 +160,30 @@ local function IsProfessionTrainer()
   return ok == true or ok == 1
 end
 
+-- Riding-related spells to exclude (IDs are stable across locales)
+local RIDING_SPELL_IDS = {
+  [33388] = true, -- Apprentice Riding
+  [33391] = true, -- Journeyman Riding
+  [34090] = true, -- Expert Riding
+  [34091] = true, -- Artisan Riding
+  [54197] = true, -- Cold Weather Flying
+  -- Some private servers/Cata+ backports might expose these:
+  [90265] = true, -- Master Riding
+  [90267] = true, -- Flight Master's License
+}
+
+local function IsRidingService(name, spellID)
+  if spellID and RIDING_SPELL_IDS[spellID] then return true end
+  -- Conservative English-only fallback if we couldn't resolve an ID
+  if not spellID and type(name) == "string" then
+    local n = string.lower(name)
+    if n:find("riding") or n:find("flying") or n:find("cold weather") then
+      return true
+    end
+  end
+  return false
+end
+
 local function ScanTrainerOnce()
   if IsProfessionTrainer() then
     dprint("Skipping profession trainer scan (profession trainer detected).")
@@ -176,103 +197,42 @@ local function ScanTrainerOnce()
       local name, rank, serviceType = GetTrainerServiceInfo(i)
       if name and name ~= "" and serviceType ~= "header" then
         local id = ResolveSpellID(i)
-        local description = ReadDescription(i)
-        local reqLevel = GetTrainerServiceLevelReq and GetTrainerServiceLevelReq(i) or 0
-        local moneyCost = GetTrainerServiceCost and GetTrainerServiceCost(i) or 0
 
-        local abilityReqs = {}
-        local numReqs = GetTrainerServiceNumAbilityReq and (GetTrainerServiceNumAbilityReq(i) or 0) or 0
-        for r = 1, numReqs do
-          if GetTrainerServiceAbilityReq then
-            local ability, has = GetTrainerServiceAbilityReq(i, r)
-            abilityReqs[#abilityReqs + 1] = { ability = ability, has = has and true or false }
+        -- Exclude riding/mount training entries
+        if IsRidingService(name, id) then
+          dprint("Filtered riding service:", name, id or "nil")
+        else
+          local description = ReadDescription(i)
+          local reqLevel = GetTrainerServiceLevelReq and GetTrainerServiceLevelReq(i) or 0
+          local moneyCost = GetTrainerServiceCost and GetTrainerServiceCost(i) or 0
+
+          local abilityReqs = {}
+          local numReqs = GetTrainerServiceNumAbilityReq and (GetTrainerServiceNumAbilityReq(i) or 0) or 0
+          for r = 1, numReqs do
+            if GetTrainerServiceAbilityReq then
+              local ability, has = GetTrainerServiceAbilityReq(i, r)
+              abilityReqs[#abilityReqs + 1] = { ability = ability, has = has and true or false }
+            end
           end
-        end
 
-        results[#results + 1] = {
-          id = id,
-          name = name,
-          rank = rank,
-          description = description,
-          requiredLevel = reqLevel,
-          cost = moneyCost,
-          abilityReqs = abilityReqs,
-          trainerState = serviceType,
-          icon = (ResolveIcon and ResolveIcon(name, rank, i, id)) or nil,
-        }
+          results[#results + 1] = {
+            id = id,
+            name = name,
+            rank = rank,
+            description = description,
+            requiredLevel = reqLevel,
+            cost = moneyCost,
+            abilityReqs = abilityReqs,
+            trainerState = serviceType,
+            icon = (ResolveIcon and ResolveIcon(name, rank, i, id)) or nil,
+          }
+        end
       end
     end
     dprint("Scan complete, rows:", #results)
     return results
   end)
 end
-
--- ===== Tab icon (What's Training? spellbook tab) =====
-
-local ICON_ZOOM = 1.25
-
--- Helper: apply a zoom to a texcoord rectangle (left/right/top/bottom in [0,1])
-local function SetZoomedTexCoord(tex, left, right, top, bottom, zoom)
-  zoom = tonumber(zoom) or 1
-  if zoom <= 1 then
-    tex:SetTexCoord(left, right, top, bottom)
-    return
-  end
-  local w = right - left
-  local h = bottom - top
-  local padX = (1 - 1/zoom) * w * 0.5
-  local padY = (1 - 1/zoom) * h * 0.5
-  tex:SetTexCoord(left + padX, right - padX, top + padY, bottom - padY)
-end
-
--- Set the WT tab icon to either "?" or the player's class icon (atlas + texcoords), with a fixed 1.3x crop
-local function ApplyWTTabIcon()
-  -- WT uses MAX_SKILLLINE_TABS - 1 for its custom tab (as defined in UI.lua)
-  local tabIndex = (MAX_SKILLLINE_TABS and (MAX_SKILLLINE_TABS - 1)) or 4
-  local tab = _G["SpellBookSkillLineTab" .. tabIndex]
-  if not tab then return end
-
-  -- Ensure a normal texture exists
-  if not tab:GetNormalTexture() then
-    tab:SetNormalTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-  end
-  local tex = tab:GetNormalTexture()
-  if not tex then return end
-
-  local useClass = WT_EpochAccountDB and WT_EpochAccountDB.useClassTabIcon
-  if useClass then
-    local classToken = select(2, UnitClass("player"))
-    if CLASS_ICON_TCOORDS and classToken and CLASS_ICON_TCOORDS[classToken] then
-      local c = CLASS_ICON_TCOORDS[classToken] -- {left, right, top, bottom}
-      tex:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
-      SetZoomedTexCoord(tex, c[1], c[2], c[3], c[4], ICON_ZOOM)
-      return
-    end
-  end
-
-  -- Fallback: question mark
-  tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-  SetZoomedTexCoord(tex, 0, 1, 0, 1, ICON_ZOOM)
-end
-
--- Re-apply next frame to win against other hooks that may set the icon
-local function ApplyWTTabIconNextFrame()
-  local fr = CreateFrame("Frame")
-  fr:SetScript("OnUpdate", function(self)
-    self:SetScript("OnUpdate", nil)
-    ApplyWTTabIcon()
-  end)
-end
-
--- Keep the icon correct whenever the spellbook updates
-if type(hooksecurefunc) == "function" and type(SpellBookFrame_Update) == "function" then
-  hooksecurefunc("SpellBookFrame_Update", function()
-    ApplyWTTabIcon()
-    ApplyWTTabIconNextFrame()
-  end)
-end
-
--- ===== End: Tab icon =====
 
 -- Debounced timer
 local throttle = CreateFrame("Frame", "WT_EpochTrainerScanOnceThrottle")
@@ -312,6 +272,14 @@ local function DoInitialScan()
   end
 end
 
+-- Public wrapper so other modules (/wte scan) can trigger a scan once
+function wt.ScanTrainerOnceNow()
+  local ok, err = pcall(function() DoInitialScan() end)
+  if not ok then
+    error(err)
+  end
+end
+
 -- Events
 local f = CreateFrame("Frame")
 f:RegisterEvent("PLAYER_LOGIN")
@@ -335,66 +303,3 @@ f:SetScript("OnEvent", function(_, event)
     wt._trainerScannedThisSession = false
   end
 end)
-
--- Slash helpers: /wte debug | /wte scan | /wte reset | /wte test | /wte icon
-local function sanitizeMsg(msg)
-  msg = tostring(msg or "")
-  msg = string.lower(msg)
-  msg = msg:match("^%s*(.-)%s*$") or msg
-  return msg
-end
-
-SLASH_WTE1 = "/wte"
-SlashCmdList["WTE"] = function(msg)
-  msg = sanitizeMsg(msg)
-
-  if msg == "debug" then
-    wt.debug = not wt.debug
-    print("|cff66ccff[WT:Epoch]|r debug =", wt.debug and "ON" or "OFF")
-
-  elseif msg == "scan" then
-    local ok, err = pcall(function()
-      DoInitialScan()
-    end)
-    if not ok then
-      print("|cff66ccff[WT:Epoch]|r scan error:", tostring(err))
-    end
-
-  elseif msg == "reset" then
-    if type(wt.DB_Reset) == "function" then
-      wt.DB_Reset()
-    else
-      WT_EpochCharDB = { version = 1, spells = {} }
-    end
-    wt._iconCache = nil
-    wt._trainerScannedThisSession = false
-    if type(wt.RebuildData) == "function" then wt.RebuildData() end
-    if wt.MainFrame and wt.MainFrame:IsVisible() and type(wt.Update) == "function" then
-      wt.Update(wt.MainFrame, true)
-    end
-    print("|cff66ccff[WT:Epoch]|r cache cleared. Visit a class trainer to repopulate.")
-
-  elseif msg == "test" then
-    if type(wt.TestAnnounce) == "function" then
-      wt.TestAnnounce()
-    else
-      print("|cff66ccff[WT:Epoch]|r This command only works if you have cached spells available at your class trainer.")
-    end
-
-  elseif msg == "icon" then
-    -- Account-wide toggle for tab icon
-    WT_EpochAccountDB = WT_EpochAccountDB or {}
-    WT_EpochAccountDB.useClassTabIcon = not WT_EpochAccountDB.useClassTabIcon
-    print("|cff66ccff[WT:Epoch]|r Tab icon (account-wide):", WT_EpochAccountDB.useClassTabIcon and "Class icon" or "Question mark")
-
-    -- Apply immediately and refresh spellbook once; also re-apply next frame
-    ApplyWTTabIcon()
-    ApplyWTTabIconNextFrame()
-    if type(SpellBookFrame_Update) == "function" then
-      SpellBookFrame_Update()
-    end
-
-  else
-    print("|cff66ccff[WT:Epoch]|r commands: debug | scan | reset | test | icon")
-  end
-end

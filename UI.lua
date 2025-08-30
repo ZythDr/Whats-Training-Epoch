@@ -13,6 +13,10 @@ local LEFT_BG_TEXTURE_PATH   = ADDON_PATH .. "res\\left"
 local RIGHT_BG_TEXTURE_PATH  = ADDON_PATH .. "res\\right"
 local TAB_TEXTURE_PATH       = "Interface\\Icons\\INV_Misc_QuestionMark"
 
+-- Ensure account DB exists and default for tab icon toggle
+WT_EpochAccountDB = WT_EpochAccountDB or {}
+if WT_EpochAccountDB.useClassTabIcon == nil then WT_EpochAccountDB.useClassTabIcon = false end
+
 -- Use the global GameTooltip for maximum compatibility on 3.3.5 variants
 local tooltip = GameTooltip
 
@@ -77,6 +81,28 @@ local function setTooltip(spell)
   tooltip:Show()
 end
 
+-- Defensive: make sure the level label exists on the row before use
+local function EnsureLevelLabel(row)
+  if not row or not row.spell then return end
+  if row.spell.level then return end
+
+  local lvl = row.spell:CreateFontString("$parentLevelLabel", "OVERLAY", "GameFontWhite")
+  lvl:SetPoint("TOPRIGHT", row.spell, -4, 0)
+  lvl:SetPoint("BOTTOM", row.spell)
+  lvl:SetJustifyH("RIGHT")
+  lvl:SetJustifyV("MIDDLE")
+  row.spell.level = lvl
+
+  -- Re-anchor sub label relative to the level label
+  if row.spell.subLabel then
+    row.spell.subLabel:ClearAllPoints()
+    row.spell.subLabel:SetPoint("TOPLEFT", row.spell.label, "TOPRIGHT", 2, 0)
+    row.spell.subLabel:SetPoint("BOTTOM", row.spell.label)
+    row.spell.subLabel:SetPoint("RIGHT", lvl, "LEFT")
+    row.spell.subLabel:SetJustifyV("MIDDLE")
+  end
+end
+
 local function setRowSpell(row, spell)
   if not spell then
     row.currentSpell = nil
@@ -95,14 +121,21 @@ local function setRowSpell(row, spell)
     row.spell:Show()
     row.spell.label:SetText(spell.name or "")
     row.spell.subLabel:SetText(spell.formattedSubText or "")
-    if not spell.hideLevel and (spell.formattedLevel and spell.formattedLevel ~= "") then
-      row.spell.level:Show()
-      row.spell.level:SetText(spell.formattedLevel)
-      local c = spell.levelColor or { r = 1, g = 1, b = 1 }
-      row.spell.level:SetTextColor(c.r, c.g, c.b)
-    else
-      row.spell.level:Hide()
+
+    -- Ensure level widget exists before using it
+    EnsureLevelLabel(row)
+
+    if row.spell.level then
+      if not spell.hideLevel and (spell.formattedLevel and spell.formattedLevel ~= "") then
+        row.spell.level:Show()
+        row.spell.level:SetText(spell.formattedLevel)
+        local c = spell.levelColor or { r = 1, g = 1, b = 1 }
+        row.spell.level:SetTextColor(c.r, c.g, c.b)
+      else
+        row.spell.level:Hide()
+      end
     end
+
     row:SetID(spell.id or 0)
     row.spell.icon:SetTexture(spell.icon or TAB_TEXTURE_PATH)
   end
@@ -254,6 +287,7 @@ function wt.CreateFrame()
     headerLabel:SetJustifyV("MIDDLE")
     headerLabel:SetJustifyH("CENTER")
 
+    -- Attach child widgets to the container for easy access
     spell.label = spellLabel
     spell.subLabel = spellSublabel
     spell.icon = spellIcon
@@ -297,3 +331,77 @@ function wt.CreateFrame()
     wt._uiHooked = true
   end
 end
+
+-- ===== Tab icon (What's Training? spellbook tab) =====
+local ICON_ZOOM = 1.3
+
+local function SetZoomedTexCoord(tex, left, right, top, bottom, zoom)
+  zoom = tonumber(zoom) or 1
+  if zoom <= 1 then
+    tex:SetTexCoord(left, right, top, bottom)
+    return
+  end
+  local w = right - left
+  local h = bottom - top
+  local padX = (1 - 1/zoom) * w * 0.5
+  local padY = (1 - 1/zoom) * h * 0.5
+  tex:SetTexCoord(left + padX, right - padX, top + padY, bottom - padY)
+end
+
+local function ApplyWTTabIconInternal()
+  local tabIndex = (MAX_SKILLLINE_TABS and (MAX_SKILLLINE_TABS - 1)) or 4
+  local tab = _G["SpellBookSkillLineTab" .. tabIndex]
+  if not tab then return end
+
+  if not tab:GetNormalTexture() then
+    tab:SetNormalTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+  end
+  local tex = tab:GetNormalTexture()
+  if not tex then return end
+
+  local useClass = WT_EpochAccountDB and WT_EpochAccountDB.useClassTabIcon
+  if useClass then
+    local classToken = select(2, UnitClass("player"))
+    if CLASS_ICON_TCOORDS and classToken and CLASS_ICON_TCOORDS[classToken] then
+      local c = CLASS_ICON_TCOORDS[classToken]
+      tex:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
+      SetZoomedTexCoord(tex, c[1], c[2], c[3], c[4], ICON_ZOOM)
+      return
+    end
+  end
+
+  tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+  SetZoomedTexCoord(tex, 0, 1, 0, 1, ICON_ZOOM)
+end
+
+local function ApplyWTTabIconNextFrame()
+  local fr = CreateFrame("Frame")
+  fr:SetScript("OnUpdate", function(self)
+    self:SetScript("OnUpdate", nil)
+    ApplyWTTabIconInternal()
+  end)
+end
+
+-- Public helpers for other modules
+function wt.ApplyWTTabIcon()
+  ApplyWTTabIconInternal()
+  ApplyWTTabIconNextFrame()
+end
+
+function wt.ToggleTabIcon()
+  WT_EpochAccountDB = WT_EpochAccountDB or {}
+  WT_EpochAccountDB.useClassTabIcon = not WT_EpochAccountDB.useClassTabIcon
+  wt.ApplyWTTabIcon()
+  if type(SpellBookFrame_Update) == "function" then
+    SpellBookFrame_Update()
+  end
+  return WT_EpochAccountDB.useClassTabIcon
+end
+
+if type(hooksecurefunc) == "function" and type(SpellBookFrame_Update) == "function" then
+  hooksecurefunc("SpellBookFrame_Update", function()
+    ApplyWTTabIconInternal()
+    ApplyWTTabIconNextFrame()
+  end)
+end
+-- ===== End: Tab icon =====

@@ -318,7 +318,7 @@ function wt.CreateFrame()
   mainFrame._initialized = true
   mainFrame:SetPoint("TOPLEFT", SpellBookFrame, "TOPLEFT", 0, 0)
   mainFrame:SetPoint("BOTTOMRIGHT", SpellBookFrame, "BOTTOMRIGHT", 0, 0)
-  mainFrame:SetFrameStrata("MEDIUM")
+  mainFrame:SetFrameStrata("HIGH")
   mainFrame:SetFrameLevel(40) -- ensure our frame is above page buttons
 
   -- Background
@@ -708,3 +708,4 @@ if type(hooksecurefunc) == "function" and type(SpellBookFrame_Update) == "functi
   end)
 end
 -- ===== End: Tab icon =====
+

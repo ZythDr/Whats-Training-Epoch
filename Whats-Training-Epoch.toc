@@ -2,7 +2,7 @@
 ## Title: What's Training? Epoch
 ## Notes: Server-agnostic What's Training? (identical UI/UX) that learns only from trainers
 ## Author: ZythDr
-## Version: 1.0.4
+## Version: 1.0.6
 ## SavedVariables: WT_EpochAccountDB
 ## SavedVariablesPerCharacter: WT_EpochCharDB
 
@@ -19,4 +19,5 @@ Chat.lua
 # res/highlight
 # res/left
 # res/right
+
 
